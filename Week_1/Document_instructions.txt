@@ -1,0 +1,19 @@
+For all of the papers below, please
+
++ There is a model document in /home/charles/Columbia/courses/IEORE4576_2026/References/kalman_filter_primer.* - use that as a formatting template for all of the files below.
++ The course is IEOR E4576 - Data-Driven Models in Finance, ensure that that is on the masthead of each handout
++ Put the columbia school logo on each page as in the reference document
++ No Learning objectives or anything like that
+
+My goal is to take the document in /home/charles/Columbia/courses/IEORE4576_2025/Notes/Week_1/financial_foundations_lecture.tex and update it and create a latex file in /home/charles/Columbia/courses/IEORE4576_2026/Notes/Week_1/financial_foundations.tex
+
+
+financial_foundations.tex: 
+1st section should be Market Microstructure Basics. That should start with a short (!) description of a) exchange functionality (limit order book + matching algorithm) and order types. Then go through the major electronic trading platforms (although you need to add commodity futures, and all equity markets!) The rest of this section is a mess - put section 2.4 in the FX section below. Finish out with settlement details and special order types. 
+
+Get rid of section 4. The rest of the document should be divided into 4 sections: Equities, Commodity Futures, FX, Fixed Income. In each of these sections, cover
++ main trading venues
++ main products
++ special features of these markets
+
+That way you combine all of the existing information into well-organized sections. It is too scattered right now. Please create a latex document now.

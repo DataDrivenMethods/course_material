@@ -1,0 +1,49 @@
+﻿LOBSTER vs ITCH Exchange Data Formats - Summary
+================================================
+
+RELATIONSHIP:
+LOBSTER is built FROM Nasdaq TotalView-ITCH data. LOBSTER processes raw ITCH
+feeds and reconstructs them into a standardized, research-friendly format.
+
+NASDAQ TOTALVIEW-ITCH (Raw Exchange Feed):
+- Binary format with variable-length messages
+- High volume: 30-50M messages/day (BX) to 230M+ messages/day (NASDAQ)
+- Many different message types, sequenced
+- Designed for real-time consumption by trading systems
+- Requires reconstruction logic to build orderbook
+
+LOBSTER (Processed Research Format):
+- CSV text format in two files:
+  * Message file (Nx6): Time, EventType, OrderID, Size, Price, Direction
+  * Orderbook file (Nx4xLevels): Pre-reconstructed snapshots after each event
+- Simplified to 7 event types:
+  1 = Submission (new limit order)
+  2 = Cancellation (partial deletion)
+  3 = Deletion (total deletion)
+  4 = Execution of visible limit order
+  5 = Execution of hidden limit order
+  6 = Cross trade (auction)
+  7 = Trading halt indicator
+- Designed for academic research and backtesting
+- Clean, consistent structure
+
+SIMILAR EXCHANGE FORMATS:
+- ITCH (Nasdaq) - Binary feed protocol
+- PITCH (BATS/CBOE) - Similar binary protocol
+- FIX (Financial Information eXchange) - General trading protocol
+- CME MDP 3.0 - CME Group's market data protocol
+
+All share the concept of limit order book events (add, modify, cancel, execute),
+but LOBSTER provides standardized translation for research use.
+
+KEY INSIGHT:
+LOBSTER acts as a preprocessor that converts complex, high-frequency binary
+exchange feeds into simple CSV files with reconstructed orderbook states,
+making it ideal for academic research and algorithm backtesting.
+
+Sources:
+- http://help.lobsterdata.com/en/articles/661606-nasdaq-s-historical-totalview-itch
+- https://lobsterdata.com/info/HowDoesItWork.php
+- https://data.lobsterdata.com/info/DataStructure.php
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1977207
+- https://www.nasdaq.com/articles/two-sides-every-match-2014-10-08/

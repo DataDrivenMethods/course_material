@@ -1,0 +1,77 @@
+MULTI-STRATEGY PLATFORMS
+
+| Firm        | AUM  | Notes                                                   |
+|-------------|------|---------------------------------------------------------|
+| Millennium  | $75B | ~330 pods, heavily systematic in places                 |
+| Citadel     | $65B | Wellington/Tactical; separate from Citadel Securities   |
+| Point72     | $36B | Cubist is the systematic arm                            |
+| Balyasny    | $23B | Synthesis quant unit                                    |
+| Schonfeld   | $13B | Originally a quant/day-trading shop                     |
+| ExodusPoint | $11B |                                                         |
+
+
+SYSTEMATIC-FIRST MANAGERS
+
+| Firm           | AUM         | Notes                                        |
+|----------------|-------------|----------------------------------------------|
+| Bridgewater    | $92B        | Systematic macro; largest single hedge fund  |
+| D. E. Shaw     | $65B        | Composite                                    |
+| Two Sigma      | $60B        |                                              |
+| Renaissance    | $50-60B ext | Medallion (~$10B) closed, employee-only      |
+| Man Group/AHL  | $30B+ sys   | Firm-wide ~$175B incl. long-only             |
+
+
+QUANT EQUITY - STAT ARB, MARKET NEUTRAL, FACTOR
+
+| Firm             | AUM     | Notes                                          |
+|------------------|---------|------------------------------------------------|
+| AQR              | $130B   | Factor-based; $186B (2018) -> $98B (2023) -> recovery |
+| Acadian          | $120B   | Mostly long-only quant                         |
+| Arrowstreet      | $100B+  | Mostly long-only / 130-30                      |
+| Marshall Wace    | $60B+   | TOPS signal-aggregation platform               |
+| PanAgora         | $10-40B | Smaller factor shop                            |
+| First Quadrant   | $10-40B | Smaller factor shop                            |
+| Robeco           | $10-40B | Smaller factor shop                            |
+
+
+CTAs AND MANAGED FUTURES
+
+| Firm         | AUM   | Notes                  |
+|--------------|-------|------------------------|
+| Man AHL      | $30B+ |                        |
+| Transtrend   | $15B  |                        |
+| Aspect       | $9B   |                        |
+| Winton       | $8-10B| Down from $28B peak    |
+| Graham       | $2-8B |                        |
+| Campbell     | $2-8B |                        |
+| Lynx         | $2-8B |                        |
+| Chesapeake   | $2-8B |                        |
+
+
+NEWER / MID-SIZE QUANT
+
+| Firm          | AUM   | Notes                                  |
+|---------------|-------|----------------------------------------|
+| Qube (QRT)    | $28B  | GSA spinout, fastest grower            |
+| Squarepoint   | $27B  |                                        |
+| Quadrature    | $12B  |                                        |
+| Voleon        | $6B   | ML-first                               |
+| GSA Capital   | $1-5B |                                        |
+| Florin Court  | $1-5B |                                        |
+
+
+PROPRIETARY TRADING FIRMS
+(no external AUM; figure shown is trading capital / member's equity)
+
+| Firm                | Capital       | Notes                                  |
+|---------------------|---------------|----------------------------------------|
+| Jane Street         | ~$30B         | ~$20.5B net trading revenue (2024)     |
+| Citadel Securities  | ~$15B         | ~$9.7B net trading revenue (2024)      |
+| Jump Trading        | not disclosed | Private                                |
+| XTX Markets         | not disclosed | Private; UK filings show equity only   |
+| Hudson River Trading| not disclosed | Private                                |
+| Optiver             | not disclosed | Private                                |
+| IMC                 | not disclosed | Private                                |
+| DRW                 | not disclosed | Private                                |
+| SIG                 | not disclosed | Private                                |
+| Tower Research      | not disclosed | Private                                |

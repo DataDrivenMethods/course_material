@@ -1,0 +1,27 @@
+All library = 'crsp' except the last category.
+
+
+prices, OHLCV, etc.:
+	dsf_v2
+	msf_v2
+
+enhanced versions:
+	 stkdlysecuritydata
+	 stkmthsecuritydata
+
+enhanced with reference data:
+	 wrds_dsfv2_query
+	 wrds_msfv2_query
+
+indices:
+	inddlyseriesdata
+	indmthseriesdata
+
+to link with Compustat tables:
+	ccmxpf_linktable
+
+daily risk-free rate data:
+      crsp_a_treasuries.tfz_dly_rf2 [in the tdyld column]
+      ff.factors_monthly [in the rf field, adjust to daily if necessary]
+
+	  

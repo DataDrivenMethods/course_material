@@ -1,0 +1,97 @@
+flow_ic_mi.py: signals, target and metrics
+==========================================
+
+Data: one day of 1-minute bars (data/minute_bars.h5), 2019-10-30, built from
+NASDAQ ITCH by minute_bars.py.
+
+Bar t = all trades with timestamps in [T, T+1 min), labelled by its start T.
+  close_t     price of the last trade in bar t
+  n_at_ask_t  shares in buyer-initiated trades in bar t (aggressor bought)
+  n_at_bid_t  shares in seller-initiated trades in bar t (aggressor sold)
+Trade direction: E/C executions take the aggressor side as the opposite of the
+resting order's side; P (hidden) trades are signed by the tick rule.
+
+Note: this script counts BARS, not clock minutes. A minute with no trades has
+no bar, so for a thinly traded stock "k bars" can span more than k minutes.
+(vwap_ic.py and vwap_reversion.py use clock minutes via to_minute_grid().)
+
+
+Signals (lookback k = 1, 5, 10, 15, 30 bars; all known at the end of bar t)
+-----------------------------------------------------------------------
+
+1. own_flow: order-flow imbalance of the stock itself
+
+     own_flow_t(k) = sum_{j=t-k+1..t} (n_at_ask_j - n_at_bid_j)
+                     -------------------------------------------
+                     sum_{j=t-k+1..t} (n_at_ask_j + n_at_bid_j)
+
+   Window: bars t-k+1 .. t (the last k bars, current bar included).
+   Range: -1 (all selling) to +1 (all buying).
+   Hypothesis: buying pressure is followed by rising prices (IC > 0).
+
+2. spy_gap: market lead-lag gap
+
+     spy_gap_t(k) = r_SPY(t-k, t) - r_i(t-k, t)
+     r_x(t-k, t)  = close_x,t / close_x,t-k - 1      return over the last k bars
+
+   Window: from the close of bar t-k to the close of bar t, for both SPY and
+   the stock (each over its own last k bars, aligned by timestamp).
+   Hypothesis: if SPY moved and the stock has not yet, the stock catches up
+   (IC > 0). Not scored with SPY itself as the target.
+
+3. spy_resid: beta-adjusted lead-lag gap
+
+     spy_resid_t(k) = beta_i,t * r_SPY(t-k, t) - r_i(t-k, t)
+
+     beta_i,t = Cov(r_i, r_SPY) / Var(r_SPY)  of 1-bar returns
+                over the last 60 bars, t-59 .. t (at least 30 required)
+
+   Windows: the beta uses the last 60 bars; the returns use the last k bars.
+   No lookahead: everything uses bars up to and including t.
+   Hypothesis: the stock catches up with the move the market implies for it,
+   given its beta (IC > 0). Separates "catching up" from plain reversal.
+   Not scored with SPY itself as the target.
+
+Note: spy_gap and spy_resid need SPY in data/minute_bars.h5.
+
+
+Target (forward horizon h = 1, 5, 10, 15, 30 bars)
+----------------------------------------------
+
+     fwd_ret_t(h) = close_t+h / close_t - 1
+
+   Window: from the last trade of bar t to the last trade of bar t+h.
+   Starts where every signal ends (close_t), with no gap.
+
+
+Metrics (per stock, over all bars t of the day, then averaged across stocks)
+----------------------------------------------------------------------------
+
+IC(stock, k, h)
+   Spearman rank correlation (or Pearson with --method pearson) between the
+   signal and fwd_ret over all bars t where both exist; needs 30 or more.
+
+NMI(stock, k, h)
+   Normalised mutual information between the signal and fwd_ret: both are cut
+   into equal-count bins (--nmi-bins, default 5), and
+       NMI = I(X;Y) / sqrt(H(X) H(Y))      (geometric normalisation, in [0, 1])
+   Picks up non-linear dependence that IC misses, but has no sign. Pure noise
+   does not give 0: with n observations and B bins it averages about
+   (B-1)^2 / (2 n ln B), about 0.013 for n = 390 and B = 5.
+
+Output for each signal:
+   - IC: mean across stocks and t-stat across stocks (mean / (std / sqrt(number
+     of stocks))), as lookback (rows) x horizon (columns) grids
+   - NMI: mean across stocks, with the approximate pure-noise level
+   - cross-sectional IC across stocks at each minute: mean IC_t, ICIR and t
+
+
+Caveats
+-------
+- One day: stocks share one market path, so t-stats across stocks overstate
+  significance.
+- Overlap: consecutive signals share k-1 bars and consecutive forward returns
+  share h-1 bars, so there are far fewer independent observations than bars.
+- NMI on one day mostly reflects these overlapping windows: smooth, overlapping
+  series leave fewer effective observations, which raises the noise level above
+  the formula's value, so NMI grows with k and h even without a real signal.

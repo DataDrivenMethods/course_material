@@ -1,0 +1,67 @@
+project-name/
+├── README.md              # paper, team, how to reproduce, results map
+├── pyproject.toml         # dependencies, Python version (pip install -e ".[dev]")
+├── Makefile               # or run_all.py: one command rebuilds everything
+├── .gitignore             # data/, results/, .env, __pycache__, .ipynb_checkpoints
+├── configs/
+│   └── config.yaml        # sample period, universe, parameters, random seed
+├── data/                  # NOT committed
+│   ├── raw/               # untouched downloads; never edited
+│   ├── interim/           # cleaned / merged
+│   └── processed/         # final analysis-ready datasets
+├── src/
+│   └── project/           # importable package: all real logic lives here
+│       ├── __init__.py
+│       ├── paths.py       # project-relative paths (no absolute paths)
+│       ├── data.py        # download, clean, merge
+│       ├── features.py    # signals, factors, variables
+│       ├── models.py      # estimation
+│       ├── evaluation.py  # statistics, tests, performance metrics
+│       └── plotting.py
+├── scripts/               # thin entry points, run in order
+│   ├── 01_get_data.py
+│   ├── 02_build_dataset.py
+│   ├── 03_replicate.py
+│   └── 04_extend.py
+├── notebooks/             # exploration only; never the source of a reported result
+├── results/               # generated; can be deleted and rebuilt
+│   ├── replication/
+│   │   ├── tables/
+│   │   └── figures/
+│   └── extension/
+│       ├── tables/
+│       └── figures/
+├── tests/                 # a few sanity checks
+└── report/                # write-up and slides
+
+
+Example pyproject.toml
+----------------------
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project"                 # usually the same as the folder under src/
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas>=2.0",
+    "statsmodels",
+    "matplotlib",
+    "pyyaml",
+    "wrds",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "jupyter"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+Install once from the repo root:   pip install -e ".[dev]"

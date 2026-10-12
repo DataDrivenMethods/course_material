@@ -1,0 +1,471 @@
+import pandas as pd
+import numpy as np
+from typing import Optional, List, Tuple, Dict
+from datetime import datetime, date, timedelta
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+
+def simulate_monthly_contracts(base_price: float = 100.0,
+                             start_date: str = '2020-01-01',
+                             end_date: str = '2023-12-31',
+                             volatility: float = 0.02,
+                             target_trading_days: int = 200) -> pd.DataFrame:
+    """
+    Simulate monthly futures contracts for demonstration purposes.
+
+    This creates realistic futures contract data with:
+    - Multiple monthly expiration cycles
+    - Each contract has approximately the target number of trading days
+    - Staggered start dates for realistic front-month progression
+    - Contango/backwardation patterns
+    - Volume and open interest patterns
+
+    Args:
+        base_price: Starting price level
+        start_date: Start date for simulation
+        end_date: End date for simulation
+        volatility: Daily volatility for price movements
+        target_trading_days: Target number of trading days per contract (default 200)
+
+    Returns:
+        DataFrame with simulated contract data
+    """
+    start_dt = pd.to_datetime(start_date)
+    end_dt = pd.to_datetime(end_date)
+    
+    # Generate monthly expiration dates (3rd Friday of each month)
+    expiration_dates = []
+    current_date = start_dt.replace(day=1)
+    while current_date <= end_dt + timedelta(days=365):  # Extra buffer for forward contracts
+        # Find 3rd Friday of the month
+        first_friday = current_date + timedelta(days=(4 - current_date.weekday()) % 7)
+        third_friday = first_friday + timedelta(days=14)
+        expiration_dates.append(third_friday)
+        
+        # Move to next month
+        if current_date.month == 12:
+            current_date = current_date.replace(year=current_date.year + 1, month=1)
+        else:
+            current_date = current_date.replace(month=current_date.month + 1)
+    
+    # Create trading days
+    trading_days = pd.bdate_range(start=start_date, end=end_date)
+    
+    contracts_data = []
+    # Use random seed for different data each run
+    np.random.seed(None)
+    
+    for exp_date in expiration_dates:
+        if exp_date < start_dt:
+            continue
+
+        # Contract stops trading 1 day before expiration (more realistic)
+        stop_trading = min(end_dt, exp_date - timedelta(days=1))
+
+        # Calculate start date to get exactly target_trading_days
+        # Work backwards from stop_trading date
+        available_days = [d for d in trading_days if d <= stop_trading]
+
+        if len(available_days) < target_trading_days:
+            continue
+
+        # Take exactly target_trading_days before expiration
+        contract_days = available_days[-target_trading_days:]
+
+        # Only include contract if it starts after our simulation start date
+        if contract_days[0] < start_dt:
+            continue
+
+        # Only include if the contract has enough overlap with our simulation period
+        simulation_days = [d for d in contract_days if start_dt <= d <= end_dt]
+        if len(simulation_days) < 30:  # Reduced minimum for more contracts
+            continue
+
+        # Use the days that overlap with our simulation period
+        contract_days = simulation_days
+
+        if not contract_days:
+            continue
+            
+        # Generate contract identifier
+        month_code = exp_date.strftime('%Y%m')
+        contract_name = f"Contract_{month_code}"
+        
+        # Generate price series with contango/backwardation that converges
+        days_to_expiry = [(exp_date - d).days for d in contract_days]
+        
+        # Create much more volatile price paths with frequent direction changes
+        # Use higher volatility and add mean reversion
+        daily_volatility = volatility * 3.0  # Triple the base volatility
+
+        # Generate random walk with occasional large moves and mean reversion
+        returns = []
+        for i in range(len(contract_days)):
+            # Base random return
+            base_return = np.random.normal(0, daily_volatility)
+
+            # Add occasional large jumps (5% chance of 2x larger move)
+            if np.random.random() < 0.05:
+                base_return *= 2.0
+
+            # Add mean reversion tendency (pull back toward starting price)
+            if i > 0 and len(returns) > 10:
+                recent_avg = np.mean([ret for ret in returns[-10:]])
+                mean_reversion = -0.1 * recent_avg  # 10% reversion
+                base_return += mean_reversion
+
+            returns.append(base_return)
+
+        # Build price series from returns
+        underlying_prices = [base_price]
+        for ret in returns[1:]:
+            underlying_prices.append(underlying_prices[-1] * (1 + ret))
+
+        # Create stronger and more variable term structure differences
+        # Each contract gets a random bias that changes over time
+        contract_premium = np.random.normal(0, 0.15)  # Random premium for this contract
+
+        term_structure = []
+        for i, (underlying, dte) in enumerate(zip(underlying_prices, days_to_expiry)):
+            # Variable term structure that creates larger price differences
+            time_premium = np.random.normal(0.03, 0.02) * (dte / 365)  # Random contango/backwardation
+
+            # Contract-specific premium that varies over time
+            time_varying_premium = contract_premium * (1 + 0.5 * np.sin(i / 20))  # Oscillating effect
+            contract_effect = time_varying_premium * (dte / 200)
+
+            # Add extra randomness to each price point
+            random_noise = np.random.normal(0, 0.01)
+
+            # This creates significant and variable price differences between contracts
+            final_price = underlying * (1 + time_premium + contract_effect + random_noise)
+            term_structure.append(final_price)
+        
+        # Volume pattern (higher closer to expiration)
+        max_volume = 10000
+        volumes = [max_volume * (1 - dte / 180) for dte in days_to_expiry]
+        volumes = [max(100, v) for v in volumes]  # Minimum volume
+        
+        # Open interest pattern (builds up, then declines near expiration)
+        max_oi = 50000
+        open_interests = [max_oi * (1 - abs(dte - 90) / 90) for dte in days_to_expiry]
+        open_interests = [max(100, oi) for oi in open_interests]
+        
+        for i, day in enumerate(contract_days):
+            price = term_structure[i]
+            # Add some intraday variation
+            high = price * (1 + abs(np.random.normal(0, volatility/4)))
+            low = price * (1 - abs(np.random.normal(0, volatility/4)))
+            open_price = price * (1 + np.random.normal(0, volatility/8))
+            
+            contracts_data.append({
+                'contract_name': contract_name,
+                'date': day,
+                'expiration_date': exp_date,
+                'days_to_expiry': days_to_expiry[i],
+                'open': open_price,
+                'high': high,
+                'low': low,
+                'settlement': price,
+                'volume': volumes[i],
+                'open_interest': open_interests[i]
+            })
+    
+    return pd.DataFrame(contracts_data)
+
+
+def create_time_weighted_continuous(futures_df: pd.DataFrame,
+                                  days_before_expiry: int = 5) -> pd.DataFrame:
+    """
+    Create continuous futures series using time-weighted rolling.
+
+    During the roll period, the continuous price is a weighted average of the
+    expiring contract and the next contract, with weights changing linearly.
+
+    Args:
+        futures_df: DataFrame with futures contract data
+        days_before_expiry: Number of days over which to perform weighted rolling
+
+    Returns:
+        DataFrame with continuous series
+    """
+    if futures_df.empty:
+        return pd.DataFrame()
+
+    # Ensure dates are datetime
+    df = futures_df.copy()
+    df['date'] = pd.to_datetime(df['date'])
+    df['expiration_date'] = pd.to_datetime(df['expiration_date'])
+
+    # Sort by date and expiration
+    df = df.sort_values(['date', 'expiration_date'])
+
+    continuous_data = []
+    all_dates = sorted(df['date'].unique())
+
+    for date in all_dates:
+        # Get all contracts available on this date
+        available_contracts = df[df['date'] == date].copy()
+
+        if available_contracts.empty:
+            continue
+
+        # Calculate days to expiry
+        available_contracts['days_to_expiry'] = (
+            available_contracts['expiration_date'] - date
+        ).dt.days
+
+        # Filter out expired contracts and sort by expiration
+        active_contracts = available_contracts[available_contracts['days_to_expiry'] > 0]
+        active_contracts = active_contracts.sort_values('days_to_expiry')
+
+        if active_contracts.empty:
+            continue
+
+        # Get front contract (nearest expiration)
+        front_contract = active_contracts.iloc[0]
+
+        # Check if we're in a roll period
+        if front_contract['days_to_expiry'] <= days_before_expiry and len(active_contracts) > 1:
+            # We're rolling - get next contract
+            next_contract = active_contracts.iloc[1]
+
+            # Calculate weights (linear transition over roll period)
+            days_into_roll = days_before_expiry - front_contract['days_to_expiry']
+            weight_next = min(1.0, days_into_roll / days_before_expiry)
+            weight_front = 1.0 - weight_next
+
+            # Weighted average of prices
+            weighted_settlement = (weight_front * front_contract['settlement'] +
+                                 weight_next * next_contract['settlement'])
+            weighted_open = (weight_front * front_contract['open'] +
+                           weight_next * next_contract['open'])
+            weighted_high = max(front_contract['high'], next_contract['high'])
+            weighted_low = min(front_contract['low'], next_contract['low'])
+
+            # Volume-weighted averages
+            total_volume = front_contract['volume'] + next_contract['volume']
+            weighted_oi = (weight_front * front_contract['open_interest'] +
+                         weight_next * next_contract['open_interest'])
+
+            # Contract name shows the transition
+            contract_name = f"{front_contract['contract_name']}→{next_contract['contract_name']}"
+
+            continuous_data.append({
+                'date': date,
+                'contract_name': contract_name,
+                'expiration_date': next_contract['expiration_date'],
+                'days_to_expiry': next_contract['days_to_expiry'],
+                'open': weighted_open,
+                'high': weighted_high,
+                'low': weighted_low,
+                'settlement': weighted_settlement,
+                'volume': total_volume,
+                'open_interest': weighted_oi,
+                'weight_front': weight_front,
+                'weight_next': weight_next
+            })
+        else:
+            # Not rolling - use front contract
+            continuous_data.append({
+                'date': date,
+                'contract_name': front_contract['contract_name'],
+                'expiration_date': front_contract['expiration_date'],
+                'days_to_expiry': front_contract['days_to_expiry'],
+                'open': front_contract['open'],
+                'high': front_contract['high'],
+                'low': front_contract['low'],
+                'settlement': front_contract['settlement'],
+                'volume': front_contract['volume'],
+                'open_interest': front_contract['open_interest'],
+                'weight_front': 1.0,
+                'weight_next': 0.0
+            })
+
+    return pd.DataFrame(continuous_data)
+
+
+def plot_time_weighted_series(continuous_df: pd.DataFrame,
+                             original_df: pd.DataFrame,
+                             days_before_expiry: int):
+    """
+    Plot the time-weighted continuous futures series along with individual contracts.
+    Uses the EXACT same format as plot_continuous_series but for time-weighted data.
+
+    Args:
+        continuous_df: DataFrame with time-weighted continuous series
+        original_df: DataFrame with original individual contracts
+        days_before_expiry: Days before expiry used for time-weighted rolling
+    """
+    if continuous_df.empty:
+        print("No data to plot")
+        return
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
+    fig.suptitle(f'Time-Weighted Continuous Futures (Roll over {days_before_expiry} days before expiry)',
+                 fontsize=16, fontweight='bold')
+
+    # Plot 1: Individual contracts vs time-weighted continuous series
+    ax1.set_title('Individual Contracts vs Time-Weighted Continuous Series', fontsize=14)
+
+    # Plot a few individual contracts for context
+    unique_contracts = original_df['contract_name'].unique()
+    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown']
+
+    for i, contract in enumerate(unique_contracts[:6]):  # Show first 6 contracts
+        contract_data = original_df[original_df['contract_name'] == contract]
+        if not contract_data.empty:
+            expiry = contract_data['expiration_date'].iloc[0]
+            ax1.plot(contract_data['date'], contract_data['settlement'],
+                    color=colors[i % len(colors)], alpha=0.6, linewidth=1,
+                    label=f'{contract} (exp: {expiry.strftime("%b %Y")})')
+
+    # Plot time-weighted continuous series on top
+    continuous_df = continuous_df.sort_values('date')
+    ax1.plot(continuous_df['date'], continuous_df['settlement'],
+            color='black', linewidth=3, alpha=0.9,
+            label='Time-Weighted Continuous Series')
+
+    # Mark roll periods (where weight_next > 0)
+    if 'weight_next' in continuous_df.columns:
+        roll_periods = continuous_df[continuous_df['weight_next'] > 0]
+        if len(roll_periods) > 0:
+            ax1.scatter(roll_periods['date'], roll_periods['settlement'],
+                       color='blue', s=20, alpha=0.6, zorder=5,
+                       label='Roll Periods (Blending)')
+
+    ax1.set_ylabel('Price ($)', fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
+
+    # Plot 2: Roll period analysis - show smoothing effect
+    ax2.set_title('Time-Weighted Rolling Periods (Smoothing Effect)', fontsize=14)
+
+    # Show the smoothing during roll periods
+    if 'weight_next' in continuous_df.columns:
+        roll_periods = continuous_df[continuous_df['weight_next'] > 0]
+
+        if len(roll_periods) > 0:
+            # Group roll periods by contract transitions
+            roll_groups = []
+            current_group = []
+            prev_contract_pair = None
+
+            for _, row in roll_periods.iterrows():
+                contract_pair = row['contract_name']
+                if contract_pair != prev_contract_pair:
+                    if current_group:
+                        roll_groups.append(current_group)
+                    current_group = []
+                current_group.append(row)
+                prev_contract_pair = contract_pair
+
+            if current_group:
+                roll_groups.append(current_group)
+
+            # Plot each roll period
+            colors_roll = ['blue', 'green', 'red', 'orange', 'purple']
+            for i, group in enumerate(roll_groups[:5]):  # Show first 5 roll periods
+                if len(group) > 1:
+                    dates = [r['date'] for r in group]
+                    weights_front = [r['weight_front'] for r in group]
+                    weights_next = [r['weight_next'] for r in group]
+
+                    color = colors_roll[i % len(colors_roll)]
+                    ax2.plot(dates, weights_front, 'o-', color=color, alpha=0.8,
+                            label=f'Front Weight ({group[0]["contract_name"]})')
+                    ax2.plot(dates, weights_next, 's--', color=color, alpha=0.6,
+                            label=f'Next Weight')
+
+            ax2.set_ylabel('Contract Weight', fontsize=12)
+            ax2.set_xlabel('Date', fontsize=12)
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+            ax2.set_ylim(-0.1, 1.1)
+        else:
+            ax2.text(0.5, 0.5, 'No roll periods found',
+                    transform=ax2.transAxes, ha='center', va='center')
+    else:
+        ax2.text(0.5, 0.5, 'No roll period data available',
+                transform=ax2.transAxes, ha='center', va='center')
+
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45)
+
+    plt.tight_layout()
+    plt.savefig(f'time_weighted_continuous_{days_before_expiry}days.png',
+                dpi=300, bbox_inches='tight')
+    print(f"✅ Saved plot as 'time_weighted_continuous_{days_before_expiry}days.png'")
+
+def demonstrate_time_weighted():
+    """Demonstrate the time-weighted continuous futures functionality."""
+    print("🌊 TIME-WEIGHTED ROLLING CONTINUOUS FUTURES DEMONSTRATION")
+    print("=" * 60)
+
+    # Create simulated futures data
+    print("Creating simulated futures contracts...")
+    futures_data = simulate_monthly_contracts(
+        base_price=100.0,
+        start_date='2023-01-01',
+        end_date='2023-12-31',
+        volatility=0.03,
+        target_trading_days=120
+    )
+
+    print(f"✅ Generated {len(futures_data):,} observations")
+    print(f"📊 Contracts: {futures_data['contract_name'].nunique()} individual monthly contracts")
+
+    # Show contract summary
+    print(f"\n📋 CONTRACT SUMMARY:")
+    unique_contracts = futures_data['contract_name'].unique()
+    for i, contract in enumerate(unique_contracts[:8]):  # Show first 8
+        contract_data = futures_data[futures_data['contract_name'] == contract]
+        start_date = contract_data['date'].min()
+        end_date = contract_data['date'].max()
+        expiry = contract_data['expiration_date'].iloc[0]
+        trading_days = len(contract_data)
+        price_range = f"${contract_data['settlement'].min():.2f}-${contract_data['settlement'].max():.2f}"
+
+        print(f"{i+1:2d}. {contract}: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        print(f"    Expires: {expiry.strftime('%Y-%m-%d')} | {trading_days} days | {price_range}")
+
+    # Test time-weighted with different roll periods
+    time_weighted_days_list = [5, 10, 15]
+
+    for days_before in time_weighted_days_list:
+        print(f"\n🌊 CREATING TIME-WEIGHTED SERIES (Roll over {days_before} days before expiry)")
+
+        time_weighted_series = create_time_weighted_continuous(
+            futures_data,
+            days_before_expiry=days_before
+        )
+
+        print(f"✅ Time-weighted series: {len(time_weighted_series):,} daily observations")
+
+        # Count roll periods
+        if 'weight_next' in time_weighted_series.columns:
+            roll_period_days = (time_weighted_series['weight_next'] > 0).sum()
+            print(f"🌊 Roll period days: {roll_period_days}")
+
+        # Show first few transitions with weights
+        print(f"\nFirst few time-weighted transitions:")
+        count = 0
+        for _, row in time_weighted_series.iterrows():
+            if '→' in str(row['contract_name']) and count < 5:
+                weight_front = row.get('weight_front', 0)
+                weight_next = row.get('weight_next', 0)
+                print(f"  {row['date'].strftime('%Y-%m-%d')}: {row['contract_name']} "
+                      f"(price: ${row['settlement']:.2f}, weights: {weight_front:.2f}/{weight_next:.2f})")
+                count += 1
+
+        # Create time-weighted plot
+        plot_time_weighted_series(time_weighted_series, futures_data, days_before)
+
+    print(f"\n✅ TIME-WEIGHTED DEMONSTRATION COMPLETE!")
+    print("Time-weighted rolling creates smooth transitions between contracts.")
+
+if __name__ == "__main__":
+    demonstrate_time_weighted()
