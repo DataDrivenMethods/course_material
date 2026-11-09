@@ -1,0 +1,142 @@
+Leading Commercial Solvers
+
+  Gurobi
+  - Most popular in finance for portfolio optimization, risk management, and trading strategies
+  - Excellent performance on mixed-integer programming (MIP) and quadratic programming (QP)
+  - Strong support for large-scale problems
+  - Used for mean-variance optimization, factor models, and transaction cost optimization
+
+  CPLEX (IBM)
+  - Long-established solver, widely used in financial services
+  - Strong MIP and LP capabilities
+  - Common in asset allocation, portfolio rebalancing, and risk optimization
+  - Good integration with enterprise systems
+
+  MOSEK
+  - Specialized in conic optimization (particularly second-order cone programming)
+  - Excellent for portfolio optimization with realistic constraints
+  - Handles quadratic and semidefinite programming efficiently
+  - Popular for robust optimization problems
+
+  FICO Xpress
+  - Used in banking and asset management
+  - Strong performance on large-scale optimization
+  - Good for portfolio optimization and risk management
+
+  Specialized Financial Software
+
+  Bloomberg PORT (Portfolio and Risk Analytics)
+  - Built on commercial solvers
+  - Integrated portfolio optimization with Bloomberg data
+
+  Axioma Portfolio Optimizer
+  - Uses commercial solvers underneath
+  - Factor-based portfolio construction and risk management
+
+  MATLAB Optimization Toolbox
+  - Common in quantitative finance research
+  - fmincon, quadprog for portfolio problems
+  - Often prototyping tool before production implementation
+
+  Usage Patterns
+
+  Most quantitative hedge funds, asset managers, and investment banks use Gurobi or CPLEX as their primary
+  solvers. Gurobi has been gaining market share due to performance and modern API design.
+
+  For mean-variance optimization and similar problems, MOSEK is often preferred due to its specialized conic
+  optimization capabilities.
+
+Breakdown
+=========
+  Gurobi
+
+  Best for:
+  - Mixed-Integer Portfolio Optimization - cardinality constraints (max N assets), buy-in thresholds, round lots
+  - Index tracking with sparse portfolios - minimizing number of holdings while tracking an index
+  - Transaction cost optimization - with fixed costs, minimum trade sizes
+  - Multi-period portfolio optimization - with rebalancing decisions across time
+  - Asset-liability management - with integer constraints on liability matching
+
+  Problem types: LP, QP, QCQP, MIP, MIQP, MIQCQP
+
+  Why: Industry-leading MIP performance, crucial when you have discrete decisions (buy/don't buy, position limits,
+   lot sizes)
+
+  CPLEX
+
+  Best for:
+  - Large-scale linear portfolio problems - factor-based optimization with thousands of assets
+  - Network flow problems - collateral optimization, cash management
+  - Scenario-based optimization - robust portfolio construction with discrete scenarios
+  - Integer programming in risk management - credit portfolio optimization, CVA optimization
+
+  Problem types: LP, QP, QCQP, MIP, MIQP, MIQCQP
+
+  Why: Very mature, highly optimized for large-scale problems, excellent enterprise support
+
+  MOSEK
+
+  Best for:
+  - Mean-variance optimization - classic Markowitz portfolio optimization
+  - Risk parity portfolios - equalizing risk contributions (involves conic constraints)
+  - Worst-case robust optimization - with ellipsoidal uncertainty sets
+  - Factor risk models - quadratic risk minimization with linear constraints
+  - CVaR optimization - Conditional Value at Risk minimization
+  - Regularized portfolio optimization - with L2 penalties on positions
+
+  Problem types: LP, QP, SOCP (Second-Order Cone), SDP (Semidefinite), conic optimization
+
+  Why: Superior performance on conic problems, especially when risk is modeled as norm constraints. Natural
+  formulation for many modern portfolio theory problems.
+
+  FICO Xpress
+
+  Best for:
+  - Banking optimization - capital allocation, Basel III compliance optimization
+  - ALM (Asset-Liability Management) - especially in insurance/pensions
+  - Large-scale portfolio optimization - institutional asset management
+  - Stochastic programming - scenario trees for multi-stage decisions
+
+  Problem types: LP, QP, MIP, MIQP, stochastic programming
+
+  Why: Strong in financial services sector, good stochastic programming support
+
+  MOSEK vs Gurobi/CPLEX Decision Rule
+
+  Use MOSEK when:
+  - Pure continuous optimization (no integers)
+  - Risk is your primary concern (covariance matrices, factor models)
+  - Need conic constraints (||x|| ≤ t type constraints)
+  - Problems like: min variance s.t. expected return ≥ target
+
+  Use Gurobi/CPLEX when:
+  - Any integer variables present
+  - Cardinality constraints (max N assets, min M% per position)
+  - Transaction costs with fixed components
+  - Problems like: min cost s.t. tracking error ≤ ε AND ≤100 assets
+
+  Common Finance Problem → Solver Mapping
+
+  | Problem                       | Best Solver  | Why                     |
+  |-------------------------------|--------------|-------------------------|
+  | Mean-variance (continuous)    | MOSEK        | Native QP with cones    |
+  | Mean-variance + max 50 stocks | Gurobi       | Integer constraints     |
+  | Index tracking (sparse)       | Gurobi       | Cardinality constraints |
+  | Risk parity                   | MOSEK        | Conic formulation       |
+  | Multi-period rebalancing      | Gurobi/CPLEX | MIP for transactions    |
+  | CVaR optimization             | MOSEK        | SOCP formulation        |
+  | Factor model optimization     | MOSEK/Gurobi | QP, size-dependent      |
+  | Black-Litterman               | MOSEK        | Quadratic objective     |
+  | Transaction cost minimization | Gurobi       | Fixed + variable costs  |
+
+  Many institutions use both: MOSEK for continuous risk optimization and Gurobi for discrete trading decisions.
+
+
+
+##
+## Python-based optimizers
+##
+
+cvxpy - industry standard?
+scipy.optimize [minimize with method='SLSQP' for constrained problems]
+PyPortfolioOpt - high-level wrapper around cvxpy
