@@ -1,0 +1,38 @@
+Fundamentals strategy (fundamentals_mvo.py)
+==========================================
+
+Run:  python fundamentals_mvo.py stratified
+      python fundamentals_mvo.py mvo
+
+Universe
+  S&P 500 members on each day (point in time), 2007-2023. Trading 2009-2023.
+
+Features (17), known at the close of day t, z-scored across stocks each day
+  Price-volume:  1-, 5-, 21-day return, momentum (t-251..t-21), 21-day realized vol,
+                 turnover, abnormal turnover, Amihud illiquidity.
+  Options (as of t-1): at-the-money implied vol, call minus put implied vol,
+                 put skew, implied minus realized vol, 5-day change in implied vol.
+  Fundamentals:  earnings yield, ROA, change in earnings, sales growth
+                 (from the latest quarter reported before t).
+
+Forecast
+  Each day t, OLS of the next-day return (de-meaned across stocks) on the features,
+  pooled over the previous 252 days. The forecast for t+1 is mu = Z_t beta,
+  smoothed with a 5-day half-life exponential moving average.
+
+Covariance estimate (re-estimated every day)
+  R = n x T matrix of the last 252 daily returns, de-meaned.
+  B = top 10 left singular vectors of R, F = their variances, D = residual variances.
+  Sigma = B diag(F) B' + D.
+
+Portfolios (set at the close of t, earn the return of t+1)
+  stratified:  long the top forecast quintile, short the bottom, equal weights, $1 per side.
+  mvo:         maximize w'mu - lambda w'Sigma w subject to 1'w = 0;
+               w proportional to Sigma^-1 mu - (b/a) Sigma^-1 1, a = 1'Sigma^-1 1, b = 1'Sigma^-1 mu;
+               scaled to 10% predicted annual volatility.
+  Each day the holdings move 20% of the way to the new target. Costs: 5 bps per dollar traded.
+
+Diagnostics
+  Return split into factor part w'BB'r and residual part w'(I - BB')r.
+  Stratified: residual part has Sharpe 0.67, but the factor part (13.9% vol, Sharpe -0.35)
+  swamps it. MVO hedges the factor directions (2.8% vol) and keeps the residual part.

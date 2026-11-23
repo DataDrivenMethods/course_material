@@ -7,7 +7,8 @@ import datetime
 def get_unadjusted_prices(conn: wrds.Connection, 
                          permnos: Optional[List[int]] = None,
                          start_date: Optional[str] = None,
-                         end_date: Optional[str] = None) -> pd.DataFrame:
+                         end_date: Optional[str] = None,
+                         lib: str = 'crsp') -> pd.DataFrame:
     """
     Fetch unadjusted daily stock prices from CRSP.
     
@@ -16,14 +17,15 @@ def get_unadjusted_prices(conn: wrds.Connection,
         permnos: List of PERMNOs to fetch. If None, fetches all.
         start_date: Start date in 'YYYY-MM-DD' format
         end_date: End date in 'YYYY-MM-DD' format
+        lib: CRSP library, e.g. 'crsp' (default), 'crsp_a_stock' or 'crsp_q_stock'
         
     Returns:
         DataFrame with columns: permno, dlycaldt, dlyprc, dlyvol, dlyret, dlybid, dlyask, shrout, dlycumfacpr, dlycumfacshr
     """
-    query = """
+    query = f"""
     SELECT permno, dlycaldt as date, dlyprc as prc, dlyvol as vol, dlyret as ret, 
            dlybid as bid, dlyask as ask, shrout, dlycumfacpr as cfacpr, dlycumfacshr as cfacshr
-    FROM crsp.dsf_v2
+    FROM {lib}.dsf_v2
     WHERE 1=1
     """
     
@@ -48,7 +50,8 @@ def get_unadjusted_prices(conn: wrds.Connection,
 def get_corporate_actions(conn: wrds.Connection,
                          permnos: Optional[List[int]] = None,
                          start_date: Optional[str] = None,
-                         end_date: Optional[str] = None) -> pd.DataFrame:
+                         end_date: Optional[str] = None,
+                         lib: str = 'crsp') -> pd.DataFrame:
     """
     Fetch corporate action data from the CRSP distributions table.
 
@@ -84,14 +87,14 @@ def get_corporate_actions(conn: wrds.Connection,
         Columns are aliased to the SIZ names (ex_date, divamt, facpr, facshr,
         acperm, accomp) so the rest of this module is unchanged.
     """
-    query = """
+    query = f"""
     SELECT permno, disexdt as ex_date, disrecorddt as record_date,
            dispaydt as pay_date, disdeclaredt as declare_date, disseqnbr as seq_nbr,
            distype, disdetailtype, disfreqtype, dispaymenttype, distaxtype,
            disordinaryflg, disorigcurtype,
            disdivamt as divamt, disfacpr as facpr, disfacshr as facshr,
            dispermno as acperm, dispermco as accomp
-    FROM crsp.stkdistributions
+    FROM {lib}.stkdistributions
     WHERE 1=1
     """
 
@@ -153,23 +156,13 @@ def calculate_adjustment_factors(distributions: pd.DataFrame) -> pd.DataFrame:
     dist_sorted['price_adj_factor'] = np.where(price_mult > 0, 1.0 / price_mult, 1.0)
     dist_sorted['shares_adj_factor'] = np.where(shares_mult > 0, shares_mult, 1.0)
     
-    # Calculate cumulative factors for each permno
-    result_list = []
-    
-    for permno in dist_sorted['permno'].unique():
-        permno_data = dist_sorted[dist_sorted['permno'] == permno].copy()
-        
-        # Calculate cumulative factors (going backward in time)
-        permno_data = permno_data.sort_values('ex_date', ascending=False)
-        permno_data['cum_price_adj'] = permno_data['price_adj_factor'].cumprod()
-        permno_data['cum_shares_adj'] = permno_data['shares_adj_factor'].cumprod()
-        
-        result_list.append(permno_data[['permno', 'ex_date', 'cum_price_adj', 'cum_shares_adj']])
-    
-    if result_list:
-        return pd.concat(result_list, ignore_index=True)
-    else:
-        return pd.DataFrame(columns=['permno', 'ex_date', 'cum_price_adj', 'cum_shares_adj'])
+    # Cumulative factors for each permno, going backward in time from the
+    # latest ex-date (one groupby instead of a loop over permnos)
+    dist_sorted = dist_sorted.sort_values(['permno', 'ex_date'], ascending=[True, False], kind='stable')
+    g = dist_sorted.groupby('permno', sort=False)
+    dist_sorted['cum_price_adj'] = g['price_adj_factor'].cumprod()
+    dist_sorted['cum_shares_adj'] = g['shares_adj_factor'].cumprod()
+    return dist_sorted[['permno', 'ex_date', 'cum_price_adj', 'cum_shares_adj']].reset_index(drop=True)
 
 def apply_adjustments(prices: pd.DataFrame, 
                      adjustment_factors: pd.DataFrame) -> pd.DataFrame:
@@ -201,41 +194,36 @@ def apply_adjustments(prices: pd.DataFrame,
         # No adjustments needed
         return result
     
-    for permno in result['permno'].unique():
-        permno_prices = result['permno'] == permno
-        permno_adj = adjustment_factors[adjustment_factors['permno'] == permno]
-        
-        if permno_adj.empty:
-            continue
-            
-        # Sort adjustment factors by ex_date
-        permno_adj = permno_adj.sort_values('ex_date')
-        
-        # cum_price_adj already compounds every event from the end of the sample
-        # back to its own ex-date, so it is ASSIGNED to the dates it covers -
-        # never multiplied in event by event.  Walking the events from the
-        # latest backwards lets each one overwrite its own narrower band.
-        price_mult = pd.Series(1.0, index=result.index)
-        shares_mult = pd.Series(1.0, index=result.index)
+    # cum_price_adj already compounds every event from the end of the sample
+    # back to its own ex-date, so it is ASSIGNED to the dates it covers -
+    # never multiplied in event by event.  A price on date t takes the factor of
+    # the EARLIEST event with ex_date > t (an as-of join looking forward); dates
+    # with no later event keep 1.0.  Several events on one ex-date: the last row
+    # per (permno, ex_date) holds their full product, since the cumulative
+    # product runs from the latest event backwards.
+    adj = adjustment_factors.drop_duplicates(['permno', 'ex_date'], keep='last').copy()
+    adj['permno'] = adj['permno'].astype('int64')
+    adj['ex_date'] = pd.to_datetime(adj['ex_date'])
+    keys = pd.DataFrame({'permno': result['permno'].astype('int64').to_numpy(),
+                         'date': pd.to_datetime(result['date']).to_numpy(),
+                         'row': np.arange(len(result))}).sort_values('date', kind='stable')
 
-        for _, adj_row in permno_adj.sort_values('ex_date', ascending=False).iterrows():
-            date_mask = permno_prices & (result['date'] < adj_row['ex_date'])
-            price_mult[date_mask] = adj_row['cum_price_adj']
-            if pd.notna(adj_row['cum_shares_adj']):
-                shares_mult[date_mask] = adj_row['cum_shares_adj']
+    def factor(col):
+        events = adj.loc[adj[col].notna(), ['permno', 'ex_date', col]].sort_values('ex_date')
+        m = pd.merge_asof(keys, events, left_on='date', right_on='ex_date', by='permno',
+                          direction='forward', allow_exact_matches=False)
+        return m.sort_values('row')[col].astype('float64').fillna(1.0).to_numpy()
 
-        result.loc[permno_prices, 'prc_adj'] = (
-            result.loc[permno_prices, 'prc'] * price_mult[permno_prices])
-        result.loc[permno_prices, 'shrout_adj'] = (
-            result.loc[permno_prices, 'shrout'] * shares_mult[permno_prices])
-    
+    result['prc_adj'] = result['prc'].astype('float64').to_numpy() * factor('cum_price_adj')
+    result['shrout_adj'] = result['shrout'].astype('float64').to_numpy() * factor('cum_shares_adj')
     return result
 
 def get_crsp_adjusted_prices(conn: wrds.Connection,
                            permnos: Optional[List[int]] = None,
                            start_date: Optional[str] = None,
                            end_date: Optional[str] = None,
-                           include_distributions: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
+                           include_distributions: bool = True,
+                           lib: str = 'crsp') -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Main function to get CRSP adjusted stock prices.
     
@@ -245,6 +233,7 @@ def get_crsp_adjusted_prices(conn: wrds.Connection,
         start_date: Start date in 'YYYY-MM-DD' format
         end_date: End date in 'YYYY-MM-DD' format
         include_distributions: Whether to include distribution data in output
+        lib: CRSP library, e.g. 'crsp' (default), 'crsp_a_stock' or 'crsp_q_stock'
         
     Returns:
         Tuple of (adjusted_prices_df, distributions_df)
@@ -257,10 +246,10 @@ def get_crsp_adjusted_prices(conn: wrds.Connection,
     
     # Fetch data
     print("Fetching unadjusted prices...")
-    prices = get_unadjusted_prices(conn, permnos, start_date, end_date)
+    prices = get_unadjusted_prices(conn, permnos, start_date, end_date, lib)
     
     print("Fetching corporate actions...")
-    distributions = get_corporate_actions(conn, permnos, extended_start, end_date)
+    distributions = get_corporate_actions(conn, permnos, extended_start, end_date, lib)
     
     print("Calculating adjustment factors...")
     adjustment_factors = calculate_adjustment_factors(distributions)

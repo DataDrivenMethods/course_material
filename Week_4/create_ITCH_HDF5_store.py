@@ -60,8 +60,12 @@ def store_messages(m):
             if s:
                 s = {c: s[c] for c in data.columns if c in s and data[c].dtype == object}
             dc = ['stock_locate']
+            dc_R = ['stock']
+            dc_E = ['executed_shares']
             if mtype == 'R':
-                dc.append('stock')
+                dc.extend(dc_R)
+            elif mtype == 'E':
+                dc.extend(dc_E)
             try:
                 store.append(mtype,
                              data,
