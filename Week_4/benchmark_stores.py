@@ -15,7 +15,7 @@ from time import perf_counter
 
 import pandas as pd
 
-H5 = 'itch.h5'                      # HDF5 store from create_ITCH_HDF5_store.py
+H5 = 'itch2.h5'                      # HDF5 store from create_ITCH_HDF5_store.py
 PQ = Path('itch_parquet')           # Parquet store from create_ITCH_parquet_store.py
 REPEAT = 3                          # run each query this many times; report the best
 

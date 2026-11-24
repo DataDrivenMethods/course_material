@@ -92,7 +92,7 @@ def store_messages(m):
         #           Do not store the pandas index.
         # ------------------------------------------------------------------
         table = None
-        table = pa.Table.from_pandas(data, preservce_index=False)
+        table = pa.Table.from_pandas(data, preserve_index=False)
 
         # ------------------------------------------------------------------
         # TODO (b): write `table` as a new Parquet file
@@ -102,8 +102,8 @@ def store_messages(m):
         #           Create the directory if needed; use zstd compression.
         # ------------------------------------------------------------------
         out_dir = parquet_root / f'msg_type={mtype}'
-        out_dir.mkdir(paretns=True, exist_ok=True)
-        out_file = out_dif / f'part-{batch_number:03d}.parquet'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f'part-{batch_number:03d}.parquet'
         pq.write_table(table, out_file, compression='zstd')
 
     return 0

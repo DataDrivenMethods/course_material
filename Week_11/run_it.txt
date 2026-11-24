@@ -1,0 +1,9 @@
+./build/bin/exchange_server --symbol AAPL --file ./data/10302019.NASDAQ_ITCH50 --start 11:00:00 --speed 2 --gateway-port 7777 --stp-port 7779 --md-target 127.0.0.1:7790 --md-target 127.0.0.1:7791 --display
+
+./build/bin/md_client --port 7791 --depth 10
+
+./build/bin/stp_client --port 7779 --client-id 5 | grep --line-buffered '^FILL'
+
+./build/bin/ac_client --client-id 5 --md-port 7790 --symbol AAPL --side buy --qty 5000 --start 11:02:00 --end 11:08:00 --log-csv ac_AAPL.csv
+
+python ./tools/plot_exec_summary.py ac_AAPL.csv --out cmp.png --no-show

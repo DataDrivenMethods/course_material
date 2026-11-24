@@ -901,7 +901,7 @@ def print_performance_summary(results, long_only=None):
             monthly_df = monthly_df[column_order]
 
             print("\n" + monthly_df.to_string(index=False))
-            print("="*80 + "\n")
+            print()
 
 
 def plot_performance(results, figsize=(14, 10)):
